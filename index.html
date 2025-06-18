@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blast radius online</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            position: absolute;
+            top: 100px;
+            bottom: 0;
+            width: 100%;
+        }
+        .control-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: #f0f0f0;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        input {
+            padding: 8px;
+            width: 100px;
+        }
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #locate-me {
+            background: #2196F3;
+        }
+        #locate-me:hover {
+            background: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <div class="control-group">
+            <label>Radius(M):</label>
+            <input type="number" id="radius" value="1000">
+            <button id="show-radius">Show(R)</button>
+        </div>
+        <div class="control-group">
+            <label>Timeout(s):</label>
+            <input type="number" id="delay" value="3">
+            <button id="show-delay">Show(t)</button>
+        </div>
+        <button id="center-map">Center</button>
+        <button id="locate-me">Locate me!</button>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // let defaultLat = 55.751244;
+        // let defaultLng = 37.618423;
+        let defaultLat = 0;
+        let defaultLng = 0;
+        const map = L.map('map').setView([defaultLat, defaultLng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        let centerMarker = L.marker([defaultLat, defaultLng]).addTo(map);
+        let circle = null;
+
+        function drawCircle(radius) {
+            if (circle) {
+                map.removeLayer(circle);
+            }
+            circle = L.circle([defaultLat, defaultLng], {
+                color: 'red',
+                fillColor: 'transparent',
+                fillOpacity: 0,
+                radius: radius
+            }).addTo(map);
+        }
+
+        document.getElementById('center-map').addEventListener('click', () => {
+            map.setView([defaultLat, defaultLng], 13);
+        });
+
+
+        document.getElementById('locate-me').addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert("geolocation is not supported in your browser!");
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    defaultLat = position.coords.latitude;
+                    defaultLng = position.coords.longitude;
+                    
+                    map.removeLayer(centerMarker);
+                    centerMarker = L.marker([defaultLat, defaultLng]).addTo(map);
+                    
+
+                    map.setView([defaultLat, defaultLng], 13);
+                    
+
+                    if (circle) {
+                        const currentRadius = circle.getRadius();
+                        drawCircle(currentRadius);
+                    }
+                },
+                (error) => {
+                    alert("Location Error: " + error.message);
+                }
+            );
+        });
+
+        document.getElementById('show-radius').addEventListener('click', () => {
+            const radius = parseFloat(document.getElementById('radius').value);
+            if (!isNaN(radius)) {
+                drawCircle(radius);
+                const delay = radius / 343;
+                document.getElementById('delay').value = delay.toFixed(2);
+            }
+        });
+
+        document.getElementById('show-delay').addEventListener('click', () => {
+            const delay = parseFloat(document.getElementById('delay').value);
+            if (!isNaN(delay)) {
+                const radius = delay * 343;
+                document.getElementById('radius').value = Math.round(radius);
+                drawCircle(radius);
+            }
+        });
+
+        drawCircle(1000);
+    </script>
+</body>
+</html>
