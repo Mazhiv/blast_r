@@ -53,7 +53,7 @@
             border-radius: 4px;
         }
         .btn-show {
-            background: #4CAF50; /* Зеленый по умолчанию (видно) */
+            background: #4CAF50; 
             color: white;
         }
         
@@ -273,7 +273,7 @@
                 }
             });
 
-            // Initial setup
+            
             updateCenter(centerLat, centerLng);
             const initialRadius = parseFloat(radiusInput.value);
             drawCircle(initialRadius);
@@ -323,13 +323,9 @@
                 try {
                     const circlesData = JSON.parse(e.target.result);
                     
-                    // Remove all existing circles
-                    circles.forEach(circle => {
-                        document.getElementById('circles-container').removeChild(circle.element);
-                    });
-                    circles = [];
                     
-                    // Add circles from file
+                    
+                    
                     circlesData.forEach(circleData => {
                         const circleControl = createCircleControl(circleData);
                         document.getElementById('circles-container').appendChild(circleControl.element);
@@ -337,7 +333,7 @@
                     });
                     
                     if (circles.length === 0) {
-                        // Add default circle if file was empty
+                        
                         addCircleAtPosition(0, 0);
                     }
                 } catch (error) {
@@ -353,7 +349,6 @@
             circles.push(circleControl);
         }
 
-        // Обработчик клика по карте для добавления новой окружности
         map.on('click', function(e) {
             addCircleAtPosition(e.latlng.lat, e.latlng.lng);
         });
@@ -367,8 +362,6 @@
             input.addEventListener('change', loadCirclesFromFile);
             input.click();
         });
-
-        // Add initial circle
         addCircleAtPosition(0, 0);
     </script>
 </body>
