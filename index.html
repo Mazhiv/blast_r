@@ -10,171 +10,366 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
         }
-        #map {
-            position: absolute;
-            top: 120px;
-            bottom: 0;
-            width: 100%;
-        }
-        .control-panel {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 110px;
+        #sidebar {
+            width: 350px;
             background: #f0f0f0;
             padding: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+            overflow-y: auto;
         }
-        .control-group {
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        .circle-control {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .circle-control-row {
             display: flex;
             align-items: center;
             gap: 5px;
         }
+        .circle-control-row label {
+            min-width: 80px;
+        }
         input {
             padding: 8px;
-            width: 100px;
+            flex: 1;
         }
         button {
             padding: 8px 12px;
             cursor: pointer;
-            background: #4CAF50;
-            color: white;
             border: none;
             border-radius: 4px;
         }
-        button:hover {
+        .btn-show {
+            background: #4CAF50; /* Зеленый по умолчанию (видно) */
+            color: white;
+        }
+        
+        .btn-locate {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-locate:hover {
+            background: #0b7dda;
+        }
+        .btn-center {
+            background: #ff9800;
+            color: white;
+        }
+        .btn-center:hover {
+            background: #e68a00;
+        }
+        .btn-remove {
+            background: #f44336;
+            color: white;
+        }
+        .btn-remove:hover {
+            background: #d32f2f;
+        }
+        .btn-add {
+            background: #4CAF50;
+            color: white;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .btn-add:hover {
             background: #45a049;
         }
-        #locate-me {
-            background: #2196F3;
+        .file-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
         }
-        #locate-me:hover {
-            background: #0b7dda;
+        .btn-save {
+            background: #673AB7;
+            color: white;
+            flex: 1;
+        }
+        .btn-load {
+            background: #607D8B;
+            color: white;
+            flex: 1;
         }
     </style>
 </head>
 <body>
-    <div class="control-panel">
-        <div class="control-group">
-            <label>Radius(M):</label>
-            <input type="number" id="radius" value="1000">
+    <div id="sidebar">
+        <div class="file-buttons">
+            <button id="save-circles" class="btn-save">💾 Save</button>
+            <button id="load-circles" class="btn-load">📂 Load</button>
         </div>
-        <div class="control-group">
-            <label>Timeout(s):</label>
-            <input type="number" id="delay" value="2.92">
-        </div>
-        <div class="btns">
-            <button id="show-btn">🔎Show</button>
-        <button id="locate-me">📍Locate me!</button>
-        <button id="center-map">⚪Center</button>
+        <div id="circles-container"></div>
     </div>
-        </div>
-        
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let defaultLat = 0;
-        let defaultLng = 0;
-        const map = L.map('map').setView([defaultLat, defaultLng], 13);
-
+        const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        let centerMarker = L.marker([defaultLat, defaultLng]).addTo(map);
-        let circle = null;
+        let circles = [];
+        let circleCounter = 0;
 
-        function drawCircle(radius) {
-            if (circle) {
-                map.removeLayer(circle);
+        function createCircleControl(initialData = null) {
+            const circleId = `circle-${circleCounter++}`;
+            const circleControl = document.createElement('div');
+            circleControl.className = 'circle-control';
+            circleControl.id = circleId;
+
+            circleControl.innerHTML = `
+                <div class="circle-control-row">
+                    <button class="btn-show">⭕ Circle</button>
+                    <button class="btn-remove">✕ Remove</button>
+                </div>
+                <div class="circle-control-row">
+                    <label>Center:</label>
+                    <input type="text" class="center-input" placeholder="lat, lng">
+                    <input type="checkbox" class="use-location">
+                    <label>My location</label>
+                </div>
+                <div class="circle-control-row">
+                    <label>Radius (M):</label>
+                    <input type="number" class="radius-input" value="1000">
+                </div>
+                <div class="circle-control-row">
+                    <label>Timeout (s):</label>
+                    <input type="number" class="delay-input" value="2.92">
+                </div>
+                <div class="circle-control-row">
+                    <button class="btn-center">⚪ Center</button>
+                </div>
+            `;
+
+            const showBtn = circleControl.querySelector('.btn-show');
+            const removeBtn = circleControl.querySelector('.btn-remove');
+            const centerBtn = circleControl.querySelector('.btn-center');
+            const radiusInput = circleControl.querySelector('.radius-input');
+            const delayInput = circleControl.querySelector('.delay-input');
+            const centerInput = circleControl.querySelector('.center-input');
+            const useLocation = circleControl.querySelector('.use-location');
+
+            let circle = null;
+            let marker = null;
+            let centerLat = initialData ? initialData.lat : 0;
+            let centerLng = initialData ? initialData.lng : 0;
+            let isVisible = true;
+
+            if (initialData) {
+                radiusInput.value = initialData.radius;
+                const delay = initialData.radius / 343;
+                delayInput.value = delay.toFixed(2);
+                centerInput.value = `${initialData.lat.toFixed(6)}, ${initialData.lng.toFixed(6)}`;
             }
-            circle = L.circle([defaultLat, defaultLng], {
-                color: 'red',
-                fillColor: 'transparent',
-                fillOpacity: 0,
-                radius: radius
-            }).addTo(map);
-        }
 
-
-        function updateValues(sourceField) {
-            const radiusInput = document.getElementById('radius');
-            const delayInput = document.getElementById('delay');
-
-            if (sourceField === 'radius') {
+            function updateValues(sourceField) {
                 const radius = parseFloat(radiusInput.value);
-                if (!isNaN(radius)) {
-                    const delay = radius / 343;
-                    delayInput.value = delay.toFixed(2);
-                    drawCircle(radius);
-                }
-            } else if (sourceField === 'delay') {
                 const delay = parseFloat(delayInput.value);
-                if (!isNaN(delay)) {
-                    const radius = delay * 343;
-                    radiusInput.value = Math.round(radius);
-                    drawCircle(radius);
+
+                if (sourceField === 'radius' && !isNaN(radius)) {
+                    const newDelay = radius / 343;
+                    delayInput.value = newDelay.toFixed(2);
+                    if (isVisible) drawCircle(radius);
+                } else if (sourceField === 'delay' && !isNaN(delay)) {
+                    const newRadius = delay * 343;
+                    radiusInput.value = Math.round(newRadius);
+                    if (isVisible) drawCircle(newRadius);
                 }
             }
+
+            function drawCircle(radius) {
+                if (circle) map.removeLayer(circle);
+                circle = L.circle([centerLat, centerLng], {
+                    color: 'red',
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    radius: radius
+                }).addTo(map);
+            }
+
+            function updateCenter(lat, lng) {
+                centerLat = lat;
+                centerLng = lng;
+                centerInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+                
+                if (isVisible && circle) {
+                    const currentRadius = circle.getRadius();
+                    drawCircle(currentRadius);
+                }
+            }
+
+            showBtn.addEventListener('click', () => {
+                isVisible = !isVisible;
+                if (isVisible) {
+                    const radius = parseFloat(radiusInput.value);
+                    if (!isNaN(radius)) {
+                        drawCircle(radius);
+                        showBtn.textContent = '⭕ Circle';
+                        showBtn.classList.remove('hidden');
+                    }
+                } else {
+                    if (circle) map.removeLayer(circle);
+                    showBtn.textContent = '📍 Marker';
+                    showBtn.classList.add('hidden');
+                }
+            });
+
+            removeBtn.addEventListener('click', () => {
+                if (circle) map.removeLayer(circle);
+                if (marker) map.removeLayer(marker);
+                circleControl.remove();
+                circles = circles.filter(c => c.id !== circleId);
+            });
+
+            centerBtn.addEventListener('click', () => {
+                map.setView([centerLat, centerLng], 15);
+            });
+
+            radiusInput.addEventListener('input', () => updateValues('radius'));
+            delayInput.addEventListener('input', () => updateValues('delay'));
+
+            centerInput.addEventListener('change', (e) => {
+                const parts = e.target.value.split(',').map(part => parseFloat(part.trim()));
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    updateCenter(parts[0], parts[1]);
+                }
+            });
+
+            useLocation.addEventListener('change', (e) => {
+                centerInput.disabled = e.target.checked;
+                if (e.target.checked) {
+                    if (!navigator.geolocation) {
+                        alert("Geolocation is not supported in your browser!");
+                        e.target.checked = false;
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            updateCenter(position.coords.latitude, position.coords.longitude);
+                        },
+                        (error) => {
+                            alert("Error: " + error.message);
+                            e.target.checked = false;
+                        }
+                    );
+                } else {
+                    centerInput.disabled = false;
+                }
+            });
+
+            // Initial setup
+            updateCenter(centerLat, centerLng);
+            const initialRadius = parseFloat(radiusInput.value);
+            drawCircle(initialRadius);
+
+            return {
+                id: circleId,
+                element: circleControl,
+                updateCenter,
+                drawCircle,
+                getData: () => ({
+                    lat: centerLat,
+                    lng: centerLng,
+                    radius: parseFloat(radiusInput.value)
+                })
+            };
         }
 
-        document.getElementById('radius').addEventListener('input', (e) => {
-            updateValues('radius');
-        });
+        function saveCirclesToFile() {
+            const circlesData = circles.map(circle => {
+                const data = circle.getData();
+                return {
+                    lat: data.lat,
+                    lng: data.lng,
+                    radius: data.radius
+                };
+            });
+            
+            const dataStr = JSON.stringify(circlesData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'circles.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
 
-        document.getElementById('delay').addEventListener('input', (e) => {
-            updateValues('delay');
-        });
-
-
-        document.getElementById('radius').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') e.target.blur();
-        });
-
-        document.getElementById('delay').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') e.target.blur();
-        });
-
-        document.getElementById('show-btn').addEventListener('click', () => {
-            const radius = parseFloat(document.getElementById('radius').value);
-            if (!isNaN(radius)) drawCircle(radius);
-        });
-
-        document.getElementById('center-map').addEventListener('click', () => {
-            map.setView([defaultLat, defaultLng], 13);
-        });
-
-        document.getElementById('locate-me').addEventListener('click', () => {
-            if (!navigator.geolocation) {
-                alert("Geolocation is not supported in your browser!");
-                return;
-            }
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    defaultLat = position.coords.latitude;
-                    defaultLng = position.coords.longitude;
-                    map.removeLayer(centerMarker);
-                    centerMarker = L.marker([defaultLat, defaultLng]).addTo(map);
-                    map.setView([defaultLat, defaultLng], 13);
-                    if (circle) {
-                        const currentRadius = circle.getRadius();
-                        drawCircle(currentRadius);
+        function loadCirclesFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const circlesData = JSON.parse(e.target.result);
+                    
+                    // Remove all existing circles
+                    circles.forEach(circle => {
+                        document.getElementById('circles-container').removeChild(circle.element);
+                    });
+                    circles = [];
+                    
+                    // Add circles from file
+                    circlesData.forEach(circleData => {
+                        const circleControl = createCircleControl(circleData);
+                        document.getElementById('circles-container').appendChild(circleControl.element);
+                        circles.push(circleControl);
+                    });
+                    
+                    if (circles.length === 0) {
+                        // Add default circle if file was empty
+                        addCircleAtPosition(0, 0);
                     }
-                },
-                (error) => {
-                    alert("Error: " + error.message);
+                } catch (error) {
+                    alert('Error parsing JSON file: ' + error.message);
                 }
-            );
+            };
+            reader.readAsText(file);
+        }
+
+        function addCircleAtPosition(lat, lng) {
+            const circleControl = createCircleControl({ lat, lng, radius: 1000 });
+            document.getElementById('circles-container').appendChild(circleControl.element);
+            circles.push(circleControl);
+        }
+
+        // Обработчик клика по карте для добавления новой окружности
+        map.on('click', function(e) {
+            addCircleAtPosition(e.latlng.lat, e.latlng.lng);
         });
 
-        drawCircle(1000);
+        document.getElementById('save-circles').addEventListener('click', saveCirclesToFile);
+
+        document.getElementById('load-circles').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.addEventListener('change', loadCirclesFromFile);
+            input.click();
+        });
+
+        // Add initial circle
+        addCircleAtPosition(0, 0);
     </script>
 </body>
 </html>
